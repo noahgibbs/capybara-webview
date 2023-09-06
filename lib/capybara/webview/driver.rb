@@ -6,10 +6,10 @@ class Capybara::Webview::Driver < Capybara::Driver::Base
   attr_reader :app
   attr_reader :options
 
-  def initialize(app, **options)
+  def initialize(webview, **options)
     super()
 
-    @app = app
+    @wv = webview
     @options = options
   end
 

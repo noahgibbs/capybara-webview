@@ -2,11 +2,11 @@
 
 Capybara is the standard way to do end-to-end HTML-based testing for your browser-based UI applications. Webview is a lightweight browser-based UI library with relatively limited testing infrastructure. It seems obvious that we should have a Capybara-based interface for Webview.
 
-This is *not* a drop-in replacement for normal Capybara drivers like Selenium or Headless Chrome. Please read the Usage section and/or "What's Unusual About Capybara Plus Webview?" for more details about Webview's custom setup.
+This is *not* a drop-in replacement for normal Capybara drivers like Selenium or Headless Chrome. Please read the Usage section and/or "What's Unusual About Capybara Plus Webview?" for more details about Webview's custom setup, which runs each Webview test in its own child process.
 
 ## Installation
 
-Install the gem and add to the application's Gemfile by executing:
+Install the gem and add it to the application's Gemfile by executing:
 
     $ bundle add capybara-webview
 
@@ -16,7 +16,9 @@ If bundler is not being used to manage dependencies, install the gem by executin
 
 ## Usage
 
-TODO: describe custom runner setup
+TODO: document how to write Capybara tests properly.
+
+Note: running each test in a fork is unusual. We do *not* parallelise the tests by running more than one at once. Webview takes a lot of memory, and startup is slow, among other reasons not to do this. But you cannot easily coordinate multiple tests via global variables (not that you should anyway.) If you set an instance variable, global or constant inside a test, it will not be set in the parent process, nor will it be inherited by later tests. This is good practice anyway, since you would like your tests to be parallelizable using something like minitest-parallel_fork. But in tests that inherit from MethodChildProcessTest, such as your Capybara-Webview tests, these things won't work properly. Similarly, most caches won't be shared between multiple tests.
 
 ## What's Unusual About Capybara Plus Webview?
 
