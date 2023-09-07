@@ -53,6 +53,10 @@ def webview_with(
   end
 end
 
+def navigate(dom_html)
+  wv.navigate("data:text/html, #{CGI.escape navigate_dom}")
+end
+
 def webview_destroy
   wv = webview
   @destroyed = true
@@ -61,7 +65,7 @@ def webview_destroy
 end
 
 conn = WVConnection.new(read, write) do |dgram|
-  STDERR.puts "DATAGRAM: #{dgram.inspect}"
+  STDERR.puts "WORKER DATAGRAM: #{dgram.inspect}"
   case dgram["t"]
   when "create"
     kwargs = {}

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "capybara/webview/wv_connection"
 require 'capybara/webview/browser'
 
 class Capybara::Webview::Driver < Capybara::Driver::Base
@@ -8,17 +9,25 @@ class Capybara::Webview::Driver < Capybara::Driver::Base
   attr_reader :app
   attr_reader :options
 
-  def initialize(webview, **options)
-    STDERR.puts "WV Driver init: #{webview.inspect} #{options.inspect}"
+  def initialize(app = nil, **options)
+    STDERR.puts "WV Driver init: #{app.inspect} #{options.inspect}"
 
     super()
 
-    @wv = webview
+    @app = app # should normally always be nil
     @options = options
+  end
+
+  def webview_connection
+    browser.webview_connection
   end
 
   def browser
     @browser ||= Capybara::Webview::Browser.new(self)
+  end
+
+  def set_content(html)
+    browser.set_content(html)
   end
 
   # Capybara::Driver::Base methods
@@ -70,10 +79,10 @@ class Capybara::Webview::Driver < Capybara::Driver::Base
   #def save_screenshot
   #end
 
+  # Remove these?
   def response_headers
     response.headers
   end
-
   def status_code
     response.status
   end

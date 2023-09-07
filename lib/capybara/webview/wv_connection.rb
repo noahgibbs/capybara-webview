@@ -152,11 +152,21 @@ module Capybara::Webview
     end
 
     def parent_connection(r, w)
-      @conn = WVConnection.new(r, w) do
+      @conn = WVConnection.new(r, w) do |dgram|
+        STDERR.puts "Parent received: #{dgram.inspect}"
       end
     end
 
     # Parent helpers to send Webview-related commands over a socket
+
+    # Send create args as a Hash on the wire, or as keywords in Ruby
+    def create_webview_with(**args)
+      @conn.send_datagram({t: :create, args: args})
+    end
+
+    def navigate(html)
+      @conn.send_datagram({t: :call, args: ["navigate", html]})
+    end
 
     def kill
       if @child_pid
@@ -167,11 +177,6 @@ module Capybara::Webview
         Process.wait @child_pid, 0
         @child_pid = nil
       end
-    end
-
-    # Send create args as a Hash on the wire, or as keywords in Ruby
-    def create_webview_with(**args)
-      @conn.send_datagram({t: :create, args: args})
     end
 
     # Example commands:

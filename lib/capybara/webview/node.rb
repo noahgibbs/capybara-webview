@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class Capybara::Webview::Node < Capybara::RackTest::Node
+class Capybara::Webview::Node < Capybara::Driver::Node
   def all_text
     raise NotImplementedError
   end

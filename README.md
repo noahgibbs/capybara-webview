@@ -52,6 +52,14 @@ Capybara.register_driver :webview_plus_options do |app|
 end
 ```
 
+It's possible you may need to restart to get a new clean Webview -- though it would be good to update your tests so you don't need to. But you can call .reset! on the driver manually, which will shut down the child process running Webview and cause it to be re-created when you run the test again:
+
+```ruby
+visit '/' # Normally there's a Webview connection
+page.driver.reset! # Destroy the Webview connection
+visit '/' # The driver creates a new Webview connection
+```
+
 ## Webview Normally Runs Locally, So How Does This Work?
 
 Webview expects to be run in a process, no more than once, that shuts down when Webview completes. Webview also expects to control the event loop, via `run`, and never give back control for long. It hates background threads and shuts them down on startup. This is not how Capybara tests normally run. However, with some work, we can run Capybara in a compatible mode by starting a subprocess for Webview and using it to relay commands. This is a bit like how Selenium works - we have a manager process wrapped around the actual process running the application under test.
