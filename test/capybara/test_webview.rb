@@ -22,7 +22,9 @@ class Capybara::TestWebview < CapybaraWebviewTest
 
   def test_it_queries_a_dom_object
     webview_process.create_webview_with navigate_dom: "<div id='top'></div>"
-    # visit('/') # is this needed at all with Webview?
+    STDERR.puts "VISIT"
+    visit('/') # how do we want this to work with Webview?
+    STDERR.puts "ASSERT_SELECT"
     assert_select("#top")
   end
 end

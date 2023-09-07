@@ -1,70 +1,41 @@
 # frozen_string_literal: true
 
-require "capybara/webview/wv_connection"
 require 'capybara/webview/browser'
 
 class Capybara::Webview::Driver < Capybara::Driver::Base
+  # attr_writer :session # in parent class
+
   attr_reader :app
   attr_reader :options
 
   def initialize(webview, **options)
+    STDERR.puts "WV Driver init: #{webview.inspect} #{options.inspect}"
+
     super()
 
     @wv = webview
     @options = options
   end
 
-  def remote?(url)
-    browser.remote?(url)
-  end
-
-  #def configure
-  #  yield(browser.agent) if block_given?
-  #end
-
   def browser
     @browser ||= Capybara::Webview::Browser.new(self)
   end
 
-  #def reset!
-  #  @browser.agent.shutdown
-  #  super
-  #end
+  # Capybara::Driver::Base methods
 
-  def response
-    browser.last_response
-  end
-
-  def request
-    browser.last_request
+  def current_url
+    STDERR.puts "CURRENT URL"
+    browser.current_url
   end
 
   def visit(path, **attributes)
+    STDERR.puts "VISIT: #{path.inspect} #{attributes.inspect}"
     browser.visit(path, **attributes)
   end
 
   def refresh
+    STDERR.puts "REFRESH"
     browser.refresh
-  end
-
-  def submit(method, path, attributes)
-    browser.submit(method, path, attributes)
-  end
-
-  def follow(method, path, **attributes)
-    browser.follow(method, path, attributes)
-  end
-
-  def current_url
-    browser.current_url
-  end
-
-  def response_headers
-    response.headers
-  end
-
-  def status_code
-    response.status
   end
 
   def find_xpath(selector)
@@ -83,22 +54,87 @@ class Capybara::Webview::Driver < Capybara::Driver::Base
     browser.html
   end
 
-  def dom
-    browser.dom
+  # Default to not implemented, leave it not implemented
+  #def go_back
+  #end
+  #def go_forward
+  #end
+
+  # We could do this, but for now leave unimplemented
+  #def execute_script
+  #end
+  #def evaluate_script
+  #end
+  #def evaluate_async_script
+  #end
+  #def save_screenshot
+  #end
+
+  def response_headers
+    response.headers
   end
 
-  def title
-    browser.title
+  def status_code
+    response.status
   end
 
+  # We could do this, but for now leave unimplemented
+  #def send_keys
+  #end
+  #def active_element
+  #end
+
+  # Default to not implemented, leave it not implemented
+  #def switch_to_frame
+  #end
+  #def frame_title
+  #end
+  #def frame_url
+  #end
+  #def current_window_handle
+  #end
+  #def window_size
+  #end
+  #def resize_window_to
+  #end
+  #def maximize_window
+  #end
+  #def fullscreen_window
+  #end
+  #def close_window
+  #end
+  #def window_handles
+  #end
+  #def open_new_window
+  #end
+  #def switch_to_window
+  #end
+  #def no_such_window_error
+  #end
+
+  # We could do this, but for now leave unimplemented
+  #def accept_modal
+  #end
+  #def dismiss_modal
+  #end
+
+  # This is a list of error types that count as "invalid element"
+  def invalid_element_errors
+    []
+  end
+
+  def wait?
+    STDERR.puts "wait?"
+    false
+  end
+
+  # Make sure state has been cleaned up
   def reset!
-    @browser = nil
+    STDERR.puts "reset!"
+    if @webview_connection
+      @webview_connection.kill
+      @webview_connection = nil
+    end
+    super
   end
-
-  def get(...); browser.get(...); end
-  def post(...); browser.post(...); end
-  def put(...); browser.put(...); end
-  def delete(...); browser.delete(...); end
-  def header(key, value); browser.header(key, value); end
-
 end

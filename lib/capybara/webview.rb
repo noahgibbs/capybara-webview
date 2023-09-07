@@ -18,7 +18,7 @@ end
 class CapybaraWebviewTest < Minitest::Test
   include Capybara::DSL
   include Capybara::Minitest::Assertions
-  include Capybara::Webview
+  #include Capybara::Webview
 
   def webview_process
     return @webview_connection if @webview_connection
