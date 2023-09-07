@@ -2,7 +2,7 @@
 
 Capybara is the standard way to do end-to-end HTML-based testing for your browser-based UI applications. Webview is a lightweight browser-based UI library with relatively limited testing infrastructure. It seems obvious that we should have a Capybara-based interface for Webview.
 
-This is *not* a drop-in replacement for normal Capybara drivers like Selenium or Headless Chrome. Please read the Usage section and/or "What's Unusual About Capybara Plus Webview?" for more details about Webview's custom setup, which runs each Webview test in its own child process.
+This driver is incomplete, and doesn't implement some fairly basic pieces of the Capybara interface. It's unlikely to work unmodified for your use case, but it might make a solid start for you.
 
 ## Installation
 
@@ -16,23 +16,47 @@ If bundler is not being used to manage dependencies, install the gem by executin
 
 ## Usage
 
-TODO: document how to write Capybara tests properly.
+You'll want to set up Capybara-Webview in the normal Capybara way:
 
-Note: running each test in a fork is unusual. We do *not* parallelise the tests by running more than one at once. Webview takes a lot of memory, and startup is slow, among other reasons not to do this. But you cannot easily coordinate multiple tests via global variables (not that you should anyway.) If you set an instance variable, global or constant inside a test, it will not be set in the parent process, nor will it be inherited by later tests. This is good practice anyway, since you would like your tests to be parallelizable using something like minitest-parallel_fork. But in tests that inherit from MethodChildProcessTest, such as your Capybara-Webview tests, these things won't work properly. Similarly, most caches won't be shared between multiple tests.
+```ruby
+require "capybara/webview"
+Capybara.default_driver = :webview
+Capybara.run_server = false
 
-## What's Unusual About Capybara Plus Webview?
+# This is for Minitest. Obviously Minitest/spec, RSpec, etc. would be slightly different.
+class CapybaraWebviewTest < Minitest::Test
+  include Capybara::DSL
+  include Capybara::Minitest::Assertions
 
-There's a bit of a complication: Webview expects to be run in a separate process, once, that shuts down when Webview completes. This is not how Capybara tests normally run. However, with some work, we can run Capybara in a compatible mode by starting a subprocess for Webview. This is ***also*** not how these things normally run.
+  def teardown
+    Capybara.reset_sessions!
+    Capybara.use_default_driver
+  end
+end
+```
 
-By limiting ourselves to Minitest, we can use Minitest to run a specific test by itself in a subprocess, allowing us to run a single Webview-plus-Capybara-plus-Minitest test in its own process. This is not compatible with Minitest's normally runners (e.g. minitest/autorun or minitest/test_task) which run all your Minitest tests in a single process. Indeed, Minitest prides itself on making you run your tests in an arbitrary order (see "i_suck_and_my_tests_are_order_dependent!") in the same process. Webview tests aren't so much order-dependent as "you can run at most one per process."
+Then inherit your test classes from `CapybaraWebviewTest`, or whatever you named your own Capybara test parent class. You can set the driver per-test in the normal way.
 
-However, Minitest supports fairly robust "only run this one test" functionality (see the "-n" option in minitest.rb). So it's possible to write a runner that runs a single test in its own process.
+Webview has a number of options (window size, title, init code, bindings) that can only be set *before* your Webview is running. For that reason, you may wish to have multiple Webview connections. The standard way to do that is to register additional Webview drivers:
 
-Capybara::Webview expects to be run in this manner. This is not standard for Capybara or Minitest, but it's a requirement for Webview.
+```ruby
+Capybara.register_driver :webview_plus_options do |app|
+  opts = {
+    init_code: "console.log('Using webview_plus_options driver');",
+    navigate_dom: "<div id='top'></div>",
+    title: "Test app!",
+    size: [400, 300], # Nil or two-element array [width, height]
+    resizeable: true, # Whether to hint to the OS that the window should be resizeable by the user
+  }
+  Capybara::Webview::Driver.new(app, **opts)
+end
+```
 
-Note that there are other ways to manage this. For instance, Scarpe historically ran an exe/scarpe wrapper that would run a Webview application in a sub-process, and then injected test code into it and sent the results back out via a JSON file. A method like this can allow a separate smaller "Webview runner" worker, which can permit a more ordinary Minitest- or Capybara-like test flow. The tradeoff is that you have to beware running code in the parent process -- you should never load the Capybara-Webview code into your test objects directly, because creating a Webview in the parent process will, in effect, ruin your entire test run since no further Webview objects can ever be created.
+## Webview Normally Runs Locally, So How Does This Work?
 
-Instead, we opted to run each test in its own child process and only load the Webview, Minitest and Capybara test there. So the parent is an unusual Minitest runner.
+Webview expects to be run in a process, no more than once, that shuts down when Webview completes. Webview also expects to control the event loop, via `run`, and never give back control for long. It hates background threads and shuts them down on startup. This is not how Capybara tests normally run. However, with some work, we can run Capybara in a compatible mode by starting a subprocess for Webview and using it to relay commands. This is a bit like how Selenium works - we have a manager process wrapped around the actual process running the application under test.
+
+You may need to restart Webview to alter some options (e.g. window init code, JS bindings.) See "Usage" for more details.
 
 ## Should You Use Capybara for All Webview Tests?
 
@@ -48,7 +72,9 @@ You can see this approach in Rails model testing. By extracting the (fairly fast
 
 Don't eat only ice cream, no matter how good it tastes. Don't use only end-to-end integration tests, no matter how well they prove your whole application works. You need a balanced diet with good variety.
 
-## Development
+With that said, Webview tests that do ***not*** run Webview are going to be less certain. But they can test their logic ***much*** faster, so you should still use them far more often than "real" Webview tests. They will often be 100x faster or more.
+
+## Developing Capybara-Webview
 
 After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake test` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
 
