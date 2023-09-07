@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "capybara/webview/wv_connection"
 require 'capybara/webview/browser'
 
 class Capybara::Webview::Driver < Capybara::Driver::Base

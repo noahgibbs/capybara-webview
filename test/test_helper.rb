@@ -7,4 +7,3 @@ Capybara.default_driver = :webview
 Capybara.run_server = false
 
 require "minitest/autorun"
-
