@@ -14,12 +14,12 @@ module Capybara::Webview
       @current_url = '/'
     end
 
-    def webview_connection
-      return @webview_connection if @webview_connection
+    def conn
+      return @conn if @conn
 
-      @webview_connection = WebviewChildProcess.new
-      @webview_connection.start
-      @webview_connection
+      @conn = RPCWebview.new
+      @conn.start
+      @conn
     end
 
     def app
@@ -49,6 +49,15 @@ module Capybara::Webview
     def refresh
       raise "Implement!"
     end
+
+    def reset!
+      STDERR.puts "reset!"
+      if @conn
+        @conn.kill
+        @conn = nil
+      end
+    end
+
 
     def find(format, selector)
       raise "Implement!"

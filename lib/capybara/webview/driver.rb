@@ -19,7 +19,7 @@ class Capybara::Webview::Driver < Capybara::Driver::Base
   end
 
   def webview_connection
-    browser.webview_connection
+    browser.conn
   end
 
   def browser
@@ -139,11 +139,7 @@ class Capybara::Webview::Driver < Capybara::Driver::Base
 
   # Make sure state has been cleaned up
   def reset!
-    STDERR.puts "reset!"
-    if @webview_connection
-      @webview_connection.kill
-      @webview_connection = nil
-    end
+    browser.reset!
     super
   end
 end

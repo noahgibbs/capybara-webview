@@ -27,7 +27,7 @@ class Capybara::TestWebview < CapybaraWebviewTest
     visit('/')
     page.driver.reset!
     visit('/') # Should recreate the Webview child process, not get an error
-    assert_equal({ init_code: "true" }, session.driver.options)
+    assert_equal({ init_code: "true" }, page.driver.options)
   end
 
   def test_it_queries_a_dom_object

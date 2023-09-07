@@ -132,7 +132,11 @@ module Capybara::Webview
   # full control of the event loop to Webview. So instead we
   # run a Webview-based process over a socket, with a simple
   # protocol for API functions.
-  class WebviewChildProcess
+  #
+  # This object can impersonate a Webview for most purposes,
+  # once it's created and running. But calls are sent over
+  # the socket and results are returned.
+  class RPCWebview
     def start
       read1, write1 = IO.pipe
       read2, write2 = IO.pipe
@@ -152,20 +156,77 @@ module Capybara::Webview
     end
 
     def parent_connection(r, w)
+      @bind_mapping = {}
+
       @conn = WVConnection.new(r, w) do |dgram|
         STDERR.puts "Parent received: #{dgram.inspect}"
+        if dgram["t"] == "bind_call"
+          raise "Implement!"
+        end
       end
     end
 
     # Parent helpers to send Webview-related commands over a socket
 
     # Send create args as a Hash on the wire, or as keywords in Ruby
-    def create_webview_with(**args)
-      @conn.send_datagram({t: :create, args: args})
+    def create_webview
+      @conn.send_datagram({t: :create})
     end
 
-    def navigate(html)
-      @conn.send_datagram({t: :call, args: ["navigate", html]})
+    def navigate(page)
+      @conn.send_datagram({t: :call, args: ["navigate", page]})
+    end
+
+    def set_title(title)
+      @conn.send_datagram({t: :call, args: ["set_title", title]})
+    end
+
+    def set_size(width, height, hint=0)
+      @conn.send_datagram({t: :call, args: ["set_size", width, height, hint]})
+    end
+
+    def run
+      @conn.send_datagram({t: :call, args: ["run"]})
+    end
+
+    def bind(name, func = nil, &block)
+      @bind_mapping[name] = if func
+        proc { |params| func(*params) }
+      else
+        proc { |params| block.call(*params) }
+      end
+      @conn.send_datagram({t: :call, args: ["bind", name]})
+    end
+
+    def init(js)
+      @conn.send_datagram({t: :call, args: ["init", js]})
+    end
+
+    def eval(js)
+      @conn.send_datagram({t: :call, args: ["eval", js]})
+    end
+
+    def gen_name
+      @ctr ||= 0
+      @ctr += 1
+      "wv_capy_binding_%05d" % @ctr
+    end
+
+    # Webview_ruby doesn't do this, but we can. Eval the code
+    # and call the supplied block with the value when it arrives.
+    def eval_value(js, &block)
+      n = gen_name
+      @bind_mapping[n] = proc { |params| block.call(params[0]) }
+      @conn.send_datagram({t: :call, args: ["eval_value", js, n]})
+    end
+
+    # Don't wait to separate terminate from destroy. If we get either, shut everything down.
+    def terminate
+      kill
+    end
+
+    def destroy
+      kill
     end
 
     def kill

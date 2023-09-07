@@ -52,6 +52,16 @@ Capybara.register_driver :webview_plus_options do |app|
 end
 ```
 
+You can't connect to a Webview in a different process. So if you have an application that uses the Webview, you'll need to use the same remote Webview connection in the application that you use in the tests. Something like this:
+
+```ruby
+def test_my_application
+  # Get the RPCWebview object, containing a connection to a child process
+  wv_connection = page.driver.webview_connection
+  start_my_app_with_webview(wv_connection)
+end
+```
+
 It's possible you may need to restart to get a new clean Webview -- though it would be good to update your tests so you don't need to. But you can call .reset! on the driver manually, which will shut down the child process running Webview and cause it to be re-created when you run the test again:
 
 ```ruby
