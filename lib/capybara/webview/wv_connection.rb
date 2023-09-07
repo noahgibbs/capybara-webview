@@ -3,7 +3,11 @@
 require "socket"
 require "json"
 require "cgi"
+require "rbconfig"
 
+# Must be able to be required *without* the rest of Capybara-Webview by wv_worker.rb
+
+module Capybara; end
 module Capybara::Webview
   class SocketError < StandardError; end
 
@@ -129,58 +133,22 @@ module Capybara::Webview
   # run a Webview-based process over a socket, with a simple
   # protocol for API functions.
   class WebviewChildProcess
-    def initialize
-      @init_code_objects = []
-    end
-
     def start
-      read1, write1 = IO.pipe.each{|io| io.binmode}
-      read2, write2 = IO.pipe.each{|io| io.binmode}
+      read1, write1 = IO.pipe
+      read2, write2 = IO.pipe
 
       STDERR.puts "SPAWN"
-      @child_pid = Kernel.spawn
-      @child_pid = Process.fork do
-        write2.close
-        read1.close
-
-        child_loop(read2, write1)
-      end
+      rfd = read2.fileno
+      wfd = write1.fileno
+      @child_pid = Kernel.spawn \
+        RbConfig.ruby, File.expand_path(File.join __dir__, "wv_worker.rb"), rfd.to_s, wfd.to_s,
+        { rfd => rfd, wfd => wfd } # pass pipe to child process
 
       read2.close
       write1.close
 
       parent_connection(read1, write2)
       nil
-    end
-
-    # Event loops for parent and child
-
-    def child_loop(r, w)
-      @conn = WVConnection.new(r, w) do |dgram|
-        STDERR.puts "DATAGRAM: #{dgram.inspect}"
-        case dgram["t"]
-        when "create"
-          kwargs = {}
-          dgram["args"].each { |k, v| kwargs[k.to_sym] = v }
-          webview_with(**kwargs)
-          STDERR.puts "RUN"
-          webview.run # Take over the event loop, only return when terminate is called
-        when "call"
-          a = dgram["args"]
-          unless a.is_a?(Array)
-            raise "Bad 'call' datagram! #{dgram.inspect}"
-          end
-          webview.send(*a)
-        when "kill"
-          webview_destroy
-          exit 0
-        else
-          raise "Unrecognized datagram! #{dgram.inspect}"
-        end
-      end
-
-      # Loop for 2.5 seconds waiting for events, after which we will have called webview.run
-      @conn.event_loop_for(2.5, increment: 0.05)
     end
 
     def parent_connection(r, w)
@@ -213,44 +181,6 @@ module Capybara::Webview
 
     def cmd(*args)
       @conn.send_datagram({t: :call, args: args})
-    end
-
-    # Webview-related helpers to be used in child process
-
-    def webview
-      return nil if @destroyed
-
-      @webview ||= WebviewRuby::Webview.new debug: true
-    end
-
-    def webview_with(
-        init_code: nil,
-        navigate_dom: nil,
-        title: nil,
-        size: nil, # Can be a two-element array [width, height]
-        resizeable: true)
-      # Create the object
-      wv = webview
-
-      if init_code
-        @init_code_objects << init_code
-        wv.init(init_code)
-      end
-
-      wv.set_title(title) if title
-      hint = resizeable ? 0 : 3
-      wv.set_size(size[0], size[1], hint) if size
-
-      if navigate_dom
-        wv.navigate("data:text/html, #{CGI.escape navigate_dom}")
-      end
-    end
-
-    def webview_destroy
-      wv = webview
-      @destroyed = true
-      wv.terminate if wv
-      wv.destroy if wv
     end
   end
 end
