@@ -26,10 +26,6 @@ class Capybara::Webview::Driver < Capybara::Driver::Base
     @browser ||= Capybara::Webview::Browser.new(self)
   end
 
-  def set_content(html)
-    browser.set_content(html)
-  end
-
   # Capybara::Driver::Base methods
 
   def current_url
@@ -37,8 +33,10 @@ class Capybara::Webview::Driver < Capybara::Driver::Base
     browser.current_url
   end
 
+  # Visit is a bit odd in Webview, since that's not usually how it works.
   def visit(path, **attributes)
-    STDERR.puts "VISIT: #{path.inspect} #{attributes.inspect}"
+    raise("VISIT with attributes! Unexpected! #{attributes.inspect}") unless attributes.empty?
+
     browser.visit(path, **attributes)
   end
 

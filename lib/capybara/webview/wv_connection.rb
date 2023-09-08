@@ -44,6 +44,7 @@ module Capybara::Webview
     # @param contents [String] data to send
     # @return [void]
     def send_datagram(contents)
+      STDERR.puts "RAW SEND (#{Process.pid}): #{contents.inspect}"
       str_data = JSON.dump contents
       dgram_str = (str_data.length.to_s + "a" + str_data).encode(Encoding::BINARY)
       to_write = dgram_str.bytesize
@@ -155,6 +156,13 @@ module Capybara::Webview
       nil
     end
 
+    # See if anything has arrived
+    def msg_check(duration: 0.05, wait_increment: 0.1)
+      @conn.event_loop_for(duration, increment: wait_increment)
+    end
+
+    private
+
     def parent_connection(r, w)
       @bind_mapping = {}
 
@@ -165,6 +173,8 @@ module Capybara::Webview
         end
       end
     end
+
+    public
 
     # Parent helpers to send Webview-related commands over a socket
 
