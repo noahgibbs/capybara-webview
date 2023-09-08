@@ -15,10 +15,17 @@ module Capybara::Webview
   # The Webview-over-socket connection uses two of these, one each
   # in the parent and child process.
   class WVConnection
-    def initialize(from, to, &block)
+    attr_reader :msgs_written
+    attr_reader :msgs_read
+
+    def initialize(from, to, i_am, &block)
       @from = from
       @to = to
       @on_datagram = block
+      @i_am = i_am
+
+      @msgs_written = 0
+      @msgs_read = 0
     end
 
     # Checks whether the internal socket is ready to be read from.
@@ -44,7 +51,7 @@ module Capybara::Webview
     # @param contents [String] data to send
     # @return [void]
     def send_datagram(contents)
-      STDERR.puts "RAW SEND (#{Process.pid}): #{contents.inspect}"
+      STDERR.puts "RAW SEND (#{@i_am}): #{contents.inspect}"
       str_data = JSON.dump contents
       dgram_str = (str_data.length.to_s + "a" + str_data).encode(Encoding::BINARY)
       to_write = dgram_str.bytesize
@@ -58,6 +65,8 @@ module Capybara::Webview
 
         written += count
       end
+
+      @msgs_written += 1
 
       nil
     end
@@ -93,6 +102,8 @@ module Capybara::Webview
         if @readbuf.bytesize >= to_read
           out = @readbuf.byteslice(0, to_read)
           @readbuf = @readbuf.byteslice(to_read, -1)
+          STDERR.puts "RAW READ (#{@i_am}): #{out.inspect}"
+          @msgs_read += 1
           return out
         end
 
@@ -127,6 +138,11 @@ module Capybara::Webview
         end
       end
     end
+
+    # Dispatch datagrams while there's data available, but don't wait for any more.
+    def instant_read_check
+      respond_to_datagram while ready_to_read?(0.0)
+    end
   end
 
   # We want to run Webview code, but we want not to have to give
@@ -134,7 +150,7 @@ module Capybara::Webview
   # run a Webview-based process over a socket, with a simple
   # protocol for API functions.
   #
-  # This object can impersonate a Webview for most purposes,
+  # This object can impersonate a Webview for most purposes
   # once it's created and running. But calls are sent over
   # the socket and results are returned.
   class RPCWebview
@@ -157,8 +173,23 @@ module Capybara::Webview
     end
 
     # See if anything has arrived
-    def msg_check(duration: 0.05, wait_increment: 0.1)
-      @conn.event_loop_for(duration, increment: wait_increment)
+    def msg_check(duration: 0.05, increment: 0.1)
+      if duration == 0.0
+        @conn.instant_read_check
+      else
+        @conn.event_loop_for(duration, increment:)
+      end
+    end
+
+    def wait_for_startup(timeout: 15)
+      t_start = Time.now
+
+      STDERR.puts "WAIT FOR STARTUP"
+      while Time.now - t_start < timeout
+        @conn.event_loop_for(0.5)
+        break if @conn.msgs_read > 0  # Have we read a message yet?
+      end
+      STDERR.puts "WAIT FOR STARTUP: FINISHED #{@conn.msgs_read > 0 ? "SUCCESSFULLY" : "UNSUCCESSFULLY"}"
     end
 
     private
@@ -166,7 +197,7 @@ module Capybara::Webview
     def parent_connection(r, w)
       @bind_mapping = {}
 
-      @conn = WVConnection.new(r, w) do |dgram|
+      @conn = WVConnection.new(r, w, :parent) do |dgram|
         STDERR.puts "Parent received: #{dgram.inspect}"
         if dgram["t"] == "bind_call"
           raise "Implement!"
@@ -177,11 +208,6 @@ module Capybara::Webview
     public
 
     # Parent helpers to send Webview-related commands over a socket
-
-    # Send create args as a Hash on the wire, or as keywords in Ruby
-    def create_webview
-      @conn.send_datagram({t: :create})
-    end
 
     def navigate(page)
       @conn.send_datagram({t: :call, args: ["navigate", page]})

@@ -12,5 +12,5 @@ require "capybara/webview/driver"
 
 Capybara.register_driver :webview do |app|
   STDERR.puts "register_driver: #{app.inspect}"
-  Capybara::Webview::Driver.new(app)
+  Capybara::Webview::Driver.new(app, "size" => [400, 300])
 end

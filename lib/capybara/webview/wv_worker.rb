@@ -14,16 +14,29 @@ read = IO.for_fd(fd_read)
 write = IO.for_fd(fd_write)
 
 EVAL_RESULT = "wv_capy_return_result"
+HEARTBEAT_FUNC = "wv_capy_heartbeat"
 
 # Webview-related helpers
 
 def webview
   return nil if @destroyed
 
-  @webview ||= WebviewRuby::Webview.new debug: true
+  STDERR.puts "WORKER: CREATE WEBVIEW"
+  @webview = WebviewRuby::Webview.new debug: true
+  @webview.bind(EVAL_RESULT) do |t, id, val_or_msg|
+    conn.send_datagram({t: "bind_call", result: t, id:, val: val_or_msg})
+  end
+  @webview.bind(HEARTBEAT_FUNC) do
+    STDERR.puts "HEARTBEAT"
+    conn.instant_read_check
+  end
+  # The second argument is the time between calls in milliseconds
+  @webview.eval("setInterval(#{HEARTBEAT_FUNC},100)")
+  @webview
 end
 
 def webview_destroy
+  STDERR.puts "WORKER: DESTROY WEBVIEW"
   wv = webview
   @destroyed = true
   wv.terminate if wv
@@ -45,19 +58,13 @@ def wrapped_js(js, eval_id)
   JS_CODE
 end
 
-conn = WVConnection.new(read, write) do |dgram|
+conn = WVConnection.new(read, write, :child) do |dgram|
   STDERR.puts "WORKER DATAGRAM: #{dgram.inspect}"
 
   # We want to make sure certain arguments sent to Webview don't get garbage collected.
   @saved_references = []
 
   case dgram["t"]
-  when "create"
-    webview.bind(EVAL_RESULT) do |t, id, val_or_msg|
-      conn.send_datagram({t: "bind_call", result: t, id:, val: val_or_msg})
-    end
-    #STDERR.puts "RUN"
-    #webview.run # Take over the event loop, only return when terminate is called
   when "call"
     a = dgram["args"]
     unless a.is_a?(Array)
@@ -93,6 +100,9 @@ conn = WVConnection.new(read, write) do |dgram|
     raise "Unrecognized datagram! #{dgram.inspect}"
   end
 end
+
+# Start creating a webview immediately on process startup
+webview
 
 # Loop for 25 seconds waiting for events, after which we will presumably have called webview.run.
 # This is a little weird because webview.run won't return, so generally neither will this.

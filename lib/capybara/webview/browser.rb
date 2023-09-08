@@ -37,12 +37,22 @@ module Capybara::Webview
         hint = 0 if opts.key?("resizeable") && !opts["resizeable"]
         width, height = *opts["size"]
 
+        STDERR.puts "  SET SIZE #{width.inspect} #{height.inspect}, #{hint.inspect}"
         @conn.set_size(width, height, hint)
       end
 
-      @conn.set_title(opts["title"]) if opts["title"]
+      if opts["title"]
+        STDERR.puts "  SET TITLE #{title.inspect}"
+        @conn.set_title(opts["title"])
+      end
       @conn.init(init_code) if opts["init_code"]
-      @conn.run
+
+      # Webview is *not* fast to start up. Probably a good idea to wait awhile --
+      # in GitHub Actions it can routinely take up to 15 seconds -- for process
+      # startup. But we won't know it's happened until we get a message back.
+      @conn.wait_for_startup
+
+      #@conn.run
 
       @conn
     end
@@ -52,8 +62,11 @@ module Capybara::Webview
     # We have to "pump" the connection now and then -- check it to see if
     # any messages have come in and dispatch them.
     def conn_check
-      STDERR.puts "conn_check"
-      @conn.msg_check(duration: 0.05, wait_increment: 0.025)
+      @conn.msg_check(duration: 0.0)
+    end
+
+    def conn_wait(duration: 0.10, increment: 0.05)
+      @conn.msg_check(duration:, increment:)
     end
 
     public
@@ -86,7 +99,7 @@ module Capybara::Webview
     def html
       start_t = Time.now
       while !@visit_html && (Time.now - start_t < DEFAULT_WAIT)
-        conn_check
+        conn_wait
       end
 
       @visit_html
